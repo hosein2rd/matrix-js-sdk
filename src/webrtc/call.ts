@@ -413,7 +413,7 @@ export class MatrixCall extends EventEmitter {
             }
         }
 
-        if (isAndroid) {
+        if (!isAndroid) {
             for (const device of devices) {
                 if(device.kind === "videoinput"){
                     if(device.label.includes(iosCameraLabel)){
