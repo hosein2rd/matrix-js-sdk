@@ -223,6 +223,7 @@ export class MatrixCall extends EventEmitter {
     private screenSharingStream: MediaStream;
     private remoteStream: MediaStream;
     private localAVStream: MediaStream;
+    private isFrontCamera: boolean;
     private answerContent: object;
     private waitForLocalAVStream: boolean;
     // XXX: This is either the invite or answer from remote...
@@ -298,6 +299,7 @@ export class MatrixCall extends EventEmitter {
         this.remoteVideoElement = remoteVideoElement;
         this.placeCallWithConstraints(getUserMediaVideoContraints(CallType.Video));
         this.type = CallType.Video;
+        this.isFrontCamera = true
     }
 
     /**
@@ -384,6 +386,60 @@ export class MatrixCall extends EventEmitter {
             });
         }
     }
+
+    /**
+     * flip camera during call.
+     */
+    async flipCamera() {
+        this.isFrontCamera = !this.isFrontCamera;
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+
+        if (devices.length < 2) return
+    
+        let deviceToUse = "";
+        let isAndroid = false;
+    
+        let androidCameraLabel = this.isFrontCamera ? "0" : "1";
+        let iosCameraLabel = this.isFrontCamera ? "Front" : "Back";
+
+        for (const device of devices) {
+            if (device.kind === 'videoinput') {
+                if (device.label.includes(androidCameraLabel)) {
+                    deviceToUse = device.deviceId;
+                    isAndroid = true;
+                    break;
+                }
+            }
+        }
+
+        if (isAndroid) {
+            for (const device of devices) {
+                if(device.kind === "videoinput"){
+                    if(device.label.includes(iosCameraLabel)){
+                        deviceToUse = device.deviceId;
+                        break;
+                    }
+                }
+            }
+        }
+
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              deviceId: deviceToUse
+            }
+        });
+          
+        this.localAVStream = mediaStream;
+        this.localVideoElement.srcObject = mediaStream;
+      
+        for (const videoTrack of (this.screenSharingStream || mediaStream).getVideoTracks()) {
+            var sender = this.peerConn.getSenders().find(s => {
+              return s.track.kind == videoTrack.kind;
+            });
+            sender.replaceTrack(videoTrack);
+        }
+      }
 
     /**
      * Set the remote <code>&lt;video&gt;</code> DOM element. If this call is active,
